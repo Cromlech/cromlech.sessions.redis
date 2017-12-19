@@ -1,15 +1,12 @@
 # -*- coding: utf-8 -*-
 
-import os
-import time
 from itertools import izip_longest
-from datetime import datetime
+from cromlech.session import SessionHandler
 from cromlech.marshallers import PickleMarshaller
-from .utils import assert_sessions_folder
 
 
-class RedisSession(object):
-    """ Files based HTTP session.
+class RedisSession(SessionHandler):
+    """Redis based HTTP session.
     """
 
     def __init__(self, redis, delta, prefix='session:',
@@ -25,11 +22,8 @@ class RedisSession(object):
             args = [iter(iterable)] * n
             return izip_longest(*args)
 
-        for key in batcher(self.redis.scan_iter('%s*' % self;prefix), 100):
+        for key in batcher(self.redis.scan_iter('%s*' % self.prefix), 100):
             yield key
-
-    def new(self):
-        return {}
 
     def get(self, sid):
         key = self.prefix + sid
