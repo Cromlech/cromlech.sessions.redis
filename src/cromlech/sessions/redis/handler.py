@@ -2,72 +2,54 @@
 
 import os
 import time
+from itertools import izip_longest
 from datetime import datetime
 from cromlech.marshallers import PickleMarshaller
 from .utils import assert_sessions_folder
 
 
-class FileSession(object):
+class RedisSession(object):
     """ Files based HTTP session.
     """
 
-    def __init__(self, root, delta, marshaller=PickleMarshaller):
+    def __init__(self, redis, delta, prefix='session:',
+                 marshaller=PickleMarshaller):
         self.delta = delta  # timedelta in seconds.
-        self.root = assert_sessions_folder(root, create=True)
+        self.redis = redis
         self.marshaller = marshaller
-
-    def get_session_path(self, sid):
-        """Override to add a prefix or a namespace, if needed.
-        """
-        return os.path.join(self.root, sid)
+        self.prefix = prefix
 
     def __iter__(self):
-        """Override to add a prefix or a namespace, if needed.
-        """
-        for filepath in os.listdir(self.root):
-            yield filepath
 
-    def get_session_file(self, sid, epoch=None):
-        """Override to customize the behavior, add events or other
-        kind of decorum.
-        """
-        path = self.get_session_path(sid)
-        if os.path.exists(path):
-            if epoch is None:
-                epoch = time.time()
-            fmod = os.path.getmtime(path)
-            if (fmod + self.delta) < epoch:
-                os.remove(path)  # File expired, we remove
-                return None
-            return path
-        return None
+        def batcher(iterable, n):
+            args = [iter(iterable)] * n
+            return izip_longest(*args)
+
+        for key in batcher(self.redis.scan_iter('%s*' % self;prefix), 100):
+            yield key
+
+    def new(self):
+        return {}
 
     def get(self, sid):
-        session_path = self.get_session_file(sid)
-        if session_path is None:
-            return {}
-
-        session = self.marshaller.load_from(session_path)
+        key = self.prefix + sid
+        data = self.redis.get(key)
+        session = self.marshaller.loads(data)
+        if session is None:
+            return self.new()
         return session
 
-    def set(self, sid, data):
-        assert isinstance(data, dict)
-        session_path = self.get_session_path(sid)  # it might not exist
-        self.marshaller.dump_to(data, session_path)
-
+    def set(self, sid, session):
+        key = self.prefix + sid
+        assert isinstance(session, dict)
+        data = self.marshaller.dump(session, session_path)
+        self.redis.setex(key, data, self.delta)
+        
     def clear(self, sid):
-        session_path = self.get_session_path(sid)
-        if session_path is not None:
-            os.remove(session_path)
+        key = self.prefix + sid
+        self.redis.delete(key)
 
     def flush_expired_sessions(self):
-        """This method should be used in an asynchroneous task.
-        Running this during an HTTP request/response cycle, synchroneously
-        can result in low performances.
+        """We don't need this method, since redis has a builtin expiration.
         """
-        now = time.time()
-        for sid in iter(self):
-            path = self.get_session_file(sid, epoch=now)
-            if path is None:
-                # Added debug logging.
-                continue
+        raise NotImplementedError
