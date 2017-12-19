@@ -1,11 +1,12 @@
 # -*- coding: utf-8 -*-
 
-from itertools import izip_longest
+from datetime import timedelta
+from itertools import zip_longest
 from cromlech.session import SessionHandler
 from cromlech.marshallers import PickleMarshaller
 
 
-class RedisSession(SessionHandler):
+class RedisSessionHandler(SessionHandler):
     """Redis based HTTP session.
     """
 
@@ -17,28 +18,23 @@ class RedisSession(SessionHandler):
         self.prefix = prefix
 
     def __iter__(self):
-
-        def batcher(iterable, n):
-            args = [iter(iterable)] * n
-            return izip_longest(*args)
-
-        for key in batcher(self.redis.scan_iter('%s*' % self.prefix), 100):
-            yield key
+        for key in self.redis.scan_iter('%s*' % self.prefix):
+            yield str(key[len(self.prefix):], 'utf-8')
 
     def get(self, sid):
         key = self.prefix + sid
         data = self.redis.get(key)
-        session = self.marshaller.loads(data)
-        if session is None:
+        if data is None:
             return self.new()
+        session = self.marshaller.loads(data)            
         return session
 
     def set(self, sid, session):
         key = self.prefix + sid
         assert isinstance(session, dict)
-        data = self.marshaller.dump(session, session_path)
-        self.redis.setex(key, data, self.delta)
-        
+        data = self.marshaller.dumps(session)
+        self.redis.setex(key, timedelta(seconds=self.delta), data)
+
     def clear(self, sid):
         key = self.prefix + sid
         self.redis.delete(key)

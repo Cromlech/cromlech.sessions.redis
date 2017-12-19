@@ -1,14 +1,3 @@
-The middleware scenario
-------------------------
-
-In order to test the session cookie and general application flow,
-we'll start by testing the middleware. The middleware handles the
-creation of a cookie and stores a session id inside. This session is
-is signed and timestamped, in order to overcome the "guessable" nature
-of a session id and its possible weakness. It also adds another layer of
-expiration, since the signature can be (is) checked for its max age.
-
-
 The application
 ---------------
 
@@ -22,24 +11,36 @@ The application
     ...     return [b'Called %i time(s)' % session['my_value']]
 
 
-The middleware is a class instanciated with the signature secret and
-a timeout for the cookie and session lifespan. The timeout is
-expressed as an integer representing the number of seconds before
-expiration.
+The middleware
+--------------
 
-By default, the cookie_name is `sid` and the environ key `session`. 
+In order to test the session cookie and general application flow,
+we'll start by testing the middleware. The middleware handles the
+creation of a cookie and stores a session id inside. This session is
+is signed and timestamped, in order to overcome the "guessable" nature
+of a session id and its possible weakness. It also adds another layer of
+expiration, since the signature can be (is) checked for its max age.
 
-    >>> import pytest
+First of all, we need a redis connection. This task is not part of the
+package but it integral to the application in which the session will be
+used. You'll have to handle the connection, pools and everything
+redis-related in your application.
+
+To test, we have a very simple redis connection :
+
+    >>> redis = getfixture('redisdb')
+
+From that, we can instanciate our middleware :
+
+    >>> from cromlech.sessions.redis.handler import RedisSessionHandler
+    >>> from cromlech.session import SignedCookieManager, WSGISessionManager
+
+    >>> handler = RedisSessionHandler(redis, 300)
+    >>> manager = SignedCookieManager('secret', handler, cookie='my_sid')
+    >>> middleware = WSGISessionManager(manager, environ_key='sess')
+
     >>> from webtest import TestApp
-    >>> from cromlech.sessions.file.handler import FileSession
-    >>> from cromlech.sessions.file.manager import WSGISessionManager
-
-    >>> folder = str(getfixture('tmpdir'))
-    >>> handler = FileSession(folder, 300)
-    >>> session_manager = WSGISessionManager(
-    ...         'secret', handler, cookie='my_sid', environ_key='sess')
-
-    >>> wsgi_app = TestApp(session_manager(simple_app))
+    >>> wsgi_app = TestApp(middleware(simple_app))
     >>> result = wsgi_app.get('/')
     >>> result.status
     '200 OK'
@@ -48,12 +49,10 @@ By default, the cookie_name is `sid` and the environ key `session`.
     >>> result.body
     b'Called 1 time(s)'
 
-    >>> import os
-    >>> sessions = os.listdir(folder)
+    >>> sessions = list(iter(handler))
     >>> assert len(sessions) == 1
 
     >>> sid = sessions[0]
-    >>> assert handler.get_session_file(sid) is not None
     >>> handler.get(sid)
     {'my_value': 1}
 
@@ -67,34 +66,24 @@ By default, the cookie_name is `sid` and the environ key `session`.
     b'Called 1 time(s)'
 
     >>> handler.clear(sid)
-    >>> sessions = os.listdir(folder)
+    >>> sessions = list(iter(handler))
     >>> assert len(sessions) == 0
 
 
 Timeout
 -------
 
-    >>> handler = FileSession(folder, 1)  # 1 second timeout
-    >>> session_manager = WSGISessionManager(
-    ...         'secret', handler, cookie='my_sid', environ_key='sess')
+    >>> handler = RedisSessionHandler(redis, 1)
+    >>> handler.set('test', {'test': 'this is a test'})
+    >>> handler.get('test')
+    {'test': 'this is a test'}
 
-    >>> wsgi_app = TestApp(session_manager(simple_app))
-    >>> result = wsgi_app.get('/')
-    >>> result.body
-    b'Called 1 time(s)'
+Let's sleep it off :
 
     >>> import time
     >>> time.sleep(1)
 
-Still here :
+Gone !
 
-    >>> sessions = os.listdir(folder)
-    >>> assert len(sessions) == 1
-
-Accessing it will implicitly expire it and create a new one but
-we won't persist the new one :
-
-    >>> sid = sessions[0]
-    >>> handler.get(sid)
+    >>> handler.get('test')
     {}
-    >>> assert os.listdir(folder) == []

@@ -7,6 +7,7 @@ version = '0.1'
 
 install_requires = [
     'setuptools',
+    'cromlech.session',
     'cromlech.marshallers',
     'itsdangerous',
     'biscuits',
@@ -15,6 +16,8 @@ install_requires = [
 
 tests_require = [
     'WebTest',
+    'pytest',
+    'pytest-redis >= 1.3.2',
 ]
 
 setup(
@@ -22,7 +25,7 @@ setup(
     version=version,
     description="Session handling for wsgi applications using redis",
     long_description=(
-        open("README.txt").read() + "\n" +
+        open("README.md").read() + "\n" +
         open(os.path.join("docs", "HISTORY.txt")).read()),
     classifiers=[
         "Programming Language :: Python",
