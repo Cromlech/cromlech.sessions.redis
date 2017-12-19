@@ -39,6 +39,10 @@ class RedisSessionHandler(SessionHandler):
         key = self.prefix + sid
         self.redis.delete(key)
 
+    def touch(self, sid):
+        key = self.prefix + sid
+        self.redis.expire(key, timedelta(seconds=self.delta))
+
     def flush_expired_sessions(self):
         """We don't need this method, since redis has a builtin expiration.
         """
