@@ -2,11 +2,11 @@
 
 from datetime import timedelta
 from itertools import zip_longest
-from cromlech.session import SessionHandler
+from cromlech.session import Store
 from cromlech.marshallers import PickleMarshaller
 
 
-class RedisSessionHandler(SessionHandler):
+class RedisStore(Store):
     """Redis based HTTP session.
     """
 
@@ -38,6 +38,8 @@ class RedisSessionHandler(SessionHandler):
     def clear(self, sid):
         key = self.prefix + sid
         self.redis.delete(key)
+
+    delete = clear
 
     def touch(self, sid):
         key = self.prefix + sid

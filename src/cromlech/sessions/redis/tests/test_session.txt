@@ -32,10 +32,10 @@ To test, we have a very simple redis connection :
 
 From that, we can instanciate our middleware :
 
-    >>> from cromlech.sessions.redis.handler import RedisSessionHandler
+    >>> from cromlech.sessions.redis import RedisStore
     >>> from cromlech.session import SignedCookieManager, WSGISessionManager
 
-    >>> handler = RedisSessionHandler(redis, 300)
+    >>> handler = RedisStore(redis, 300)
     >>> manager = SignedCookieManager('secret', handler, cookie='my_sid')
     >>> middleware = WSGISessionManager(manager, environ_key='sess')
 
@@ -73,7 +73,7 @@ From that, we can instanciate our middleware :
 Timeout
 -------
 
-    >>> handler = RedisSessionHandler(redis, 1)
+    >>> handler = RedisStore(redis, 1)
     >>> handler.set('test', {'test': 'this is a test'})
     >>> handler.get('test')
     {'test': 'this is a test'}
